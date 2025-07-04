@@ -6,14 +6,13 @@ import torch
 from torch.utils.data import DataLoader
 import os
 
-# your project imports:
-# from data.loader import NeRFDataset
+# project imports:
+from data.loader import NeRFDataset
 from data.rays   import RayGenerator
-# from models.nerf import TinyNeRF
-# from rendering.volume_render import volume_render
-# from train.eval  import evaluate_novel_views
-# from utils.io    import save_checkpoint, load_checkpoint
-# from utils.visualization import plot_loss_curve
+from models.nerf import TinyNeRF
+from rendering.volume_render import volume_render
+from train.eval  import evaluate_novel_views
+from utils.visualization import plot_loss_curve
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,7 +51,8 @@ def load_config(path: str) -> dict:
     for sec, subkeys in {
         "data": ["root_dir", "intrinsics"],
         "training": ["lr", "num_epochs"],
-        "output": ["checkpoint_dir", "log_dir"]
+        "output": ["checkpoint_dir", "log_dir"],
+        "eval": ["output_dir", "root_dir"],
     }.items():
         if sec not in config:
             missing.append(sec)
@@ -84,7 +84,15 @@ def build_dataloader(cfg: dict, device: torch.device) -> tuple[DataLoader, RayGe
     - Wrap dataset in DataLoader (batch_size=1, shuffle=True)
     - Return (dataloader, rg, dirs_cam)
     """
-    ...
+    
+    dataset = NeRFDataset(cfg['data']['root_dir'])
+    
+    rg = RayGenerator(dataset.intrinsics)  # Move to device
+    dirs_cam = rg.compute_camera_dirs().to(device)  # Move to device
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True)
+
+    return dataloader, rg, dirs_cam
 
 
 def build_model_and_opt(cfg: dict, device: torch.device) -> tuple[torch.nn.Module, torch.optim.Optimizer, object]:
@@ -94,16 +102,27 @@ def build_model_and_opt(cfg: dict, device: torch.device) -> tuple[torch.nn.Modul
     - (Optionally) create LR scheduler from cfg['training']['scheduler']
     - Return (model, optimizer, scheduler_or_None)
     """
-    ...
+    
+    model = TinyNeRF(**cfg['model_params']).to(device)
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg['training']['lr']))
+    
+    scheduler = None
+    if 'scheduler' in cfg['training']:
+        if cfg['training']['scheduler'] == 'step':
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg['training']['step_size'], gamma=cfg['training']['gamma'])
+        elif cfg['training']['scheduler'] == 'cosine':
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg['training']['T_max'])
+    
+    return model, optimizer, scheduler
 
 
 def train_one_epoch(
-    epoch: int,
     dataloader: DataLoader,
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     cfg: dict,
-    rg: 'RayGenerator',
+    rg: RayGenerator,
     dirs_cam: torch.Tensor,
     device: torch.device
 ) -> float:
@@ -117,7 +136,36 @@ def train_one_epoch(
         * Accumulate loss
     - Return average loss over all images
     """
-    ...
+    
+    model.train()
+    total_loss = 0.0
+    num_rays = 0
+
+    for batch in dataloader:
+        # Load image and pose
+        image_rgb = batch['image'].squeeze(0).permute(1, 2, 0).to(device)  # [H, W, 3]
+        c2w = batch['c2w'].squeeze(0).detach().cpu().numpy()  # [4, 4]
+
+        # Get rays
+        rays_o, rays_d = rg.get_world_rays(dirs_cam, c2w)  # [H*W, 3], [H*W, 3]
+
+        # Render volume
+        rendered_rgb = volume_render(rays_o, rays_d, model, **cfg['render_params'])
+
+        # Compute loss
+        loss = torch.nn.functional.mse_loss(rendered_rgb, image_rgb.view(-1, 3), reduction='sum') 
+        
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.detach()
+        num_rays += rendered_rgb.shape[0]
+
+    avg_mse_per_pixel = total_loss / num_rays if num_rays > 0 else float('inf')
+    mse = avg_mse_per_pixel.item()
+    return mse
 
 
 def main():
@@ -138,8 +186,39 @@ def main():
     #       evaluate_novel_views(...) at intervals
     #
     # 8) final save + plot_loss_curve(...)
-    ...
     
+    args = parse_args()
+    cfg = load_config(args.config)
+    device = torch.device(cfg['training']['device'])
+    dataloader, rg, dirs_cam = build_dataloader(cfg, device)
+    model, optimizer, scheduler = build_model_and_opt(cfg, device)
+    if args.resume:
+        # TODO: load_checkpoint(model, optimizer, args.resume, device)
+        pass
+    loss_history = []
+    for epoch in range(cfg['training']['num_epochs']):
+        avg_loss = train_one_epoch(dataloader, model, optimizer, cfg, rg, dirs_cam, device)
+        loss_history.append(avg_loss)
+        print(f"Epoch {epoch+1}/{cfg['training']['num_epochs']}, Loss: {avg_loss:.4f}")
+        
+        if scheduler:
+            scheduler.step()
+        
+        if (epoch + 1) % cfg['training'].get('checkpoint_interval', 10) == 0:
+            #save_checkpoint(model, optimizer, epoch + 1, args.config, cfg['output']['checkpoint_dir'])
+            pass
+        
+        if (epoch + 1) % cfg['training'].get('eval_interval', 5) == 0:
+            model.eval()
+            with torch.no_grad():
+                evaluate_novel_views(model, rg, dirs_cam, cfg['evaluate'], device, )
+            model.train()
+        if (epoch + 1) % cfg['training'].get('plot_interval', 1) == 0:
+            plot_loss_curve(loss_history, cfg['output']['log_dir'], epoch + 1)
+    # Final save
+    # save_checkpoint(model, optimizer, cfg['training']['num_epochs'], args.config, cfg['output']['checkpoint_dir'])
+    plot_loss_curve(loss_history, cfg['output']['log_dir'], cfg['training']['num_epochs'])
+    print("Training complete!")
 
 if __name__ == "__main__":
     main()

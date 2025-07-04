@@ -71,12 +71,16 @@ class NeRFDataset(Dataset):
 
         c2w = self.poses[self.keys[idx]]
 
-        return image_tensor, c2w
+        return {
+            'image': image_tensor,
+            'c2w': c2w
+        }
         
 if __name__ == "__main__":
     # Example usage
     dataset = NeRFDataset('dataset/')
     print(f"Number of views: {len(dataset)}")
-    image, c2w = dataset[0]
+    d = dataset[0]
+    image, c2w = d['image'], d['c2w']
     print(f"Image shape: {image.shape}, Camera-to-world matrix shape: {c2w.shape}")
     print(f"Intrinsics: {dataset.intrinsics}")

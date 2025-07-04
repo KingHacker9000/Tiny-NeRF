@@ -6,13 +6,15 @@ import os
 from data.rays import RayGenerator
 from rendering.volume_render import volume_render
 from utils.io import save_predicted_image
+from data.loader import NeRFDataset
 
 def evaluate_novel_views(
     model: torch.nn.Module,
     ray_gen: RayGenerator,          # your RayGenerator instance
     dirs_cam: torch.Tensor,
     eval_cfg: dict,
-    device: torch.device
+    device: torch.device,
+    limit: int = 3
 ) -> None:
     """
     Renders a handful of held-out poses and reports PSNR and SSIM.
@@ -39,7 +41,11 @@ def evaluate_novel_views(
 
     model.eval()
     with torch.no_grad():
-        for idx, c2w in enumerate(eval_cfg['novel_poses']):
+        dataset = NeRFDataset(eval_cfg['eval']['root_dir'])
+        for idx, data in enumerate(dataset):
+            if limit > 0 and idx >= limit:
+                break
+            c2w = data['c2w']
             if isinstance(c2w, torch.Tensor):
                 c2w = c2w.detach().cpu().numpy()
             rays_o, rays_d = ray_gen.get_world_rays(dirs_cam, c2w)

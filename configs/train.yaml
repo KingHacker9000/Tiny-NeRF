@@ -1,0 +1,50 @@
+# train.yml
+
+# Paths to your dataset and intrinsics
+data:
+  root_dir: "C:/Dev/Random_Projects/NeRF_Demo/dataset"
+  intrinsics: "C:/Dev/Random_Projects/NeRF_Demo/dataset/intrinsics.json"
+
+# Training hyperparameters and scheduling
+training:
+  device: "cuda"                   # or "cpu"
+  lr: 5e-4                         # learning rate
+  num_epochs: 100                 # total training epochs
+  scheduler: "step"               # "step" or "cosine" or null
+  step_size: 20                   # for StepLR: step every N epochs
+  gamma: 0.5                      # for StepLR: multiply LR by gamma
+  T_max: 100                      # for CosineAnnealingLR
+  checkpoint_interval: 10         # save checkpoint every N epochs
+  eval_interval: 10               # run evaluation every N epochs
+  plot_interval: 1                # plot loss curve every N epochs
+
+# Model architecture parameters
+model_params:
+  body_depth: 6                   # number of layers in the MLP body
+  color_head_depth: 4             # number of layers in the color head
+  width: 128                      # hidden dimension size
+  pos_freqs: 10                   # number of L in positional encoding for points
+  dir_freqs: 4                    # number of L in positional encoding for dirs
+  skip_layer: 3                   # index of layer to apply skip connection in body
+
+# Volume-rendering settings
+render_params:
+  num_samples: 64                 # # of stratified samples per ray
+  near: 2.0                       # near plane distance
+  far: 6.0                        # far plane distance
+  chunk_size: 4096                # number of points per forward-chunk
+  background_color: [0, 0, 0]     # (R,G,B) background for unoccupied rays
+  normalize_weights: false        # whether to normalize weights to sum=1
+
+# Where to save outputs
+output:
+  checkpoint_dir: "./checkpoints" # directory for saving .pth files
+  log_dir: "./logs"               # directory for loss curves & logs
+
+# Evaluation settings (novel-view synthesis)
+eval:
+  root_dir: "C:/Dev/Random_Projects/NeRF_Demo/dataset"
+  output_dir: "./eval_renders"
+  num_samples: 64
+  near: 2.0
+  far: 6.0

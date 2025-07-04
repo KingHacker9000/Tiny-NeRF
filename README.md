@@ -1,9 +1,7 @@
 nerf_demo/
 ├── configs/
-│   ├── dataset.yaml           # paths, image sizes, camera params
-│   ├── model.yaml             # MLP depth/width, PE freqs
-│   ├── render.yaml            # sampling counts, near/far planes
-│   └── train.yaml             # optimizer, learning rates, epochs
+│   ├── eval.yaml              # Config for Evaluation
+│   └── train.yaml             # Config for Training
 │
 ├── data/
 │   ├── __init__.py
