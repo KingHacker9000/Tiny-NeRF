@@ -41,7 +41,7 @@ def evaluate_novel_views(
 
     model.eval()
     with torch.no_grad():
-        dataset = NeRFDataset(eval_cfg['eval']['root_dir'])
+        dataset = NeRFDataset(eval_cfg['root_dir'])
         for idx, data in enumerate(dataset):
             if limit > 0 and idx >= limit:
                 break

@@ -17,6 +17,7 @@ training:
   checkpoint_interval: 1         # save checkpoint every N epochs
   eval_interval: 2               # run evaluation every N epochs
   plot_interval: 1                # plot loss curve every N epochs
+  checkpoint_dir: "C:/Dev/Random_Projects/NeRF_Demo/checkpoints/checkpoint_epoch_0002.pth" # directory for saving checkpoints
 
 # Model architecture parameters
 model_params:
