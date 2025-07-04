@@ -101,6 +101,50 @@ def alpha_composite(
     
     return rgb_map
 
+# put this near the bottom, after alpha_composite()
+def render_chunks(
+    rays_o, rays_d, model,
+    num_samples, near, far,
+    chunk_size,
+    background_color=None,
+    normalize_weights=False,
+):
+    """
+    Generator that yields (rgb_chunk, gt_slice_indices) for each chunk.
+    It keeps only the current chunk’s graph in memory.
+    """
+    pts, deltas = stratified_sampling(rays_o, rays_d, num_samples, near, far)
+    R, N, _ = pts.shape
+
+    pts_flat  = pts.reshape(-1, 3)
+    dirs_flat = rays_d.unsqueeze(1).expand(R, N, 3).reshape(-1, 3)
+
+    for start in range(0, pts_flat.shape[0], chunk_size):
+        end = min(start + chunk_size, pts_flat.shape[0])
+        pts_chunk  = pts_flat[start:end].to(model.device)
+        dirs_chunk = dirs_flat[start:end].to(model.device)
+
+        sigma, rgb = model(pts_chunk, dirs_chunk)
+
+        # reshape and composite this chunk only
+        num_pts = sigma.shape[0]                 # actual points in this chunk
+        rays    = num_pts // num_samples         # rays in this chunk
+     
+        sigma = sigma.view(rays, num_samples, 1)
+        rgb   = rgb.view(rays, num_samples, 3)
+     
+        start_ray = start // num_samples
+        end_ray   = start_ray + rays
+        delt = deltas[start_ray:end_ray].to(model.device)
+
+        rgb_chunk = alpha_composite(
+            sigma, rgb, delt,
+            background_color=background_color,
+            normalize_weights=normalize_weights,
+        )  # [rays, 3]
+
+        yield rgb_chunk, slice(start // num_samples, end // num_samples)
+
 
 def volume_render(
     rays_o: torch.Tensor,
@@ -141,12 +185,14 @@ def volume_render(
 
     for i in range(0, points_flat.shape[0], chunk_size):
         # 3) Model prediction: sigma, rgb
-        chunk_pts = points_flat[i:i+chunk_size]
-        chunk_dirs = directions_flat[i:i+chunk_size]
+        chunk_pts = points_flat[i:i+chunk_size].to(model.device)
+        chunk_dirs = directions_flat[i:i+chunk_size].to(model.device)
         sigma_chunk, rgb_chunk = model(chunk_pts, chunk_dirs)
 
         sigma_chunks.append(sigma_chunk)
         rgb_chunks.append(rgb_chunk)
+        del chunk_pts, chunk_dirs, sigma_chunk, rgb_chunk
+        torch.cuda.empty_cache()          # frees cached blocks
 
     sigma_flat = torch.cat(sigma_chunks, dim=0)  # [R*num_samples, 1]
     rgb_flat = torch.cat(rgb_chunks, dim=0)      # [R*num_samples, 3]

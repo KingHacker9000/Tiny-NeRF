@@ -80,7 +80,7 @@ def _get_world_rays(
     dirs_cam_flat = dirs_cam.reshape(-1, 3)
 
     # Convert c2w to a torch tensor
-    c2w_tensor = torch.from_numpy(c2w).to(dirs_cam.dtype).to(dirs_cam.device)
+    c2w_tensor = torch.from_numpy(c2w).to(dirs_cam.dtype)#.to(dirs_cam.device)
 
     # Extract rotation and translation
     rotation = c2w_tensor[:3, :3]
