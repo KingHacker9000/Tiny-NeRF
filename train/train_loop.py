@@ -13,6 +13,7 @@ from models.nerf import TinyNeRF
 from rendering.volume_render import volume_render
 from train.eval  import evaluate_novel_views
 from utils.visualization import plot_loss_curve
+from utils.io import save_checkpoint, load_checkpoint
 
 
 def parse_args() -> argparse.Namespace:
@@ -194,7 +195,7 @@ def main():
     dataloader, rg, dirs_cam = build_dataloader(cfg, device)
     model, optimizer, scheduler = build_model_and_opt(cfg, device)
     if args.resume:
-        # TODO: load_checkpoint(model, optimizer, args.resume, device)
+        load_checkpoint(cfg['training']['checkpoint_dir'], model, optimizer, scheduler, map_location=device)
         pass
     loss_history = []
     for epoch in range(cfg['training']['num_epochs']):
@@ -205,19 +206,19 @@ def main():
         if scheduler:
             scheduler.step()
         
-        if (epoch + 1) % cfg['training'].get('checkpoint_interval', 10) == 0:
-            #save_checkpoint(model, optimizer, epoch + 1, args.config, cfg['output']['checkpoint_dir'])
+        if (epoch + 1) % cfg['training'].get('checkpoint_interval', 1) == 0:
+            save_checkpoint(model, optimizer, epoch + 1, cfg['output']['checkpoint_dir'], scheduler)
             pass
         
         if (epoch + 1) % cfg['training'].get('eval_interval', 5) == 0:
             model.eval()
             with torch.no_grad():
-                evaluate_novel_views(model, rg, dirs_cam, cfg['evaluate'], device, )
+                evaluate_novel_views(model, rg, dirs_cam, cfg['eval'], device, )
             model.train()
         if (epoch + 1) % cfg['training'].get('plot_interval', 1) == 0:
             plot_loss_curve(loss_history, cfg['output']['log_dir'], epoch + 1)
     # Final save
-    # save_checkpoint(model, optimizer, cfg['training']['num_epochs'], args.config, cfg['output']['checkpoint_dir'])
+    save_checkpoint(model, optimizer, cfg['training']['num_epochs'], cfg['output']['checkpoint_dir'], scheduler)
     plot_loss_curve(loss_history, cfg['output']['log_dir'], cfg['training']['num_epochs'])
     print("Training complete!")
 

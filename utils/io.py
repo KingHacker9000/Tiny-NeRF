@@ -41,6 +41,67 @@ def save_predicted_image(tensor: torch.Tensor, path: str):
     img = (tensor * 255).byte().cpu().permute(1,2,0).numpy()
     Image.fromarray(img).save(path)
 
+
+def save_checkpoint(
+    model,               # torch.nn.Module
+    optimizer,           # torch.optim.Optimizer
+    epoch: int,          # current epoch number
+    checkpoint_dir: str, # where to save files
+    scheduler=None       # optional LR scheduler
+) -> str:
+    """
+    - Ensure checkpoint_dir exists.
+    - Build a dict with keys: 'epoch', 'model_state', 'optimizer_state', (and 'scheduler_state' if provided).
+    - torch.save that dict to a file named e.g. checkpoint_epoch_{epoch:04d}.pth.
+    - Return the full path to the saved file.
+    """
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_{epoch:04d}.pth')
+    
+    ckpt = {
+        'epoch': epoch,
+        'model_state': model.state_dict(),
+        'optimizer_state': optimizer.state_dict()
+    }
+    
+    if scheduler is not None:
+        ckpt['scheduler_state'] = scheduler.state_dict()
+    
+    torch.save(ckpt, checkpoint_path)
+    return checkpoint_path
+
+
+def load_checkpoint(
+    path: str,           # path to a .pth file
+    model,               # torch.nn.Module
+    optimizer=None,      # optional torch.optim.Optimizer
+    scheduler=None,      # optional LR scheduler
+    map_location=None    # e.g. 'cpu' or device
+) -> dict:
+    """
+    - torch.load the file (with map_location if given).
+    - model.load_state_dict( ckpt['model_state'] )
+    - if optimizer and 'optimizer_state' in ckpt: optimizer.load_state_dict(...)
+    - if scheduler and 'scheduler_state' in ckpt: scheduler.load_state_dict(...)
+    - return the loaded ckpt dict (so you can read ckpt['epoch']).
+    """
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Checkpoint file {path} does not exist.")
+    
+    ckpt = torch.load(path, map_location=map_location)
+    
+    model.load_state_dict(ckpt['model_state'])
+    
+    if optimizer is not None and 'optimizer_state' in ckpt:
+        optimizer.load_state_dict(ckpt['optimizer_state'])
+    
+    if scheduler is not None and 'scheduler_state' in ckpt:
+        scheduler.load_state_dict(ckpt['scheduler_state'])
+    
+    return ckpt
+
+
 if __name__ == "__main__":
     # Example usage
     dataset = load_dataset('dataset/')
@@ -51,3 +112,4 @@ if __name__ == "__main__":
         print("Image indexes:", dataset['image_indexes'], type(dataset['image_indexes'][0]))
     else:
         print("Failed to load dataset.")
+

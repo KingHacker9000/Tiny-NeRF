@@ -3,3 +3,6 @@ __pychache__/
 **/__pycache__
 dataset/
 renders/
+logs.png
+checkpoints/
+*.pth

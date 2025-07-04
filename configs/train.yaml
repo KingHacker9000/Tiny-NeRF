@@ -14,8 +14,8 @@ training:
   step_size: 20                   # for StepLR: step every N epochs
   gamma: 0.5                      # for StepLR: multiply LR by gamma
   T_max: 100                      # for CosineAnnealingLR
-  checkpoint_interval: 10         # save checkpoint every N epochs
-  eval_interval: 10               # run evaluation every N epochs
+  checkpoint_interval: 1         # save checkpoint every N epochs
+  eval_interval: 2               # run evaluation every N epochs
   plot_interval: 1                # plot loss curve every N epochs
 
 # Model architecture parameters
