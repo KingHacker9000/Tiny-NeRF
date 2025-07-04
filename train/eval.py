@@ -59,13 +59,24 @@ def evaluate_novel_views(
             
             H, W = dirs_cam.shape[:2]
             rgb_image = rgb_pred.view(H, W, 3)
-            rgb_image = rgb_image.permute(2, 0, 1)
             
             ### TODO: COMPARE TO GROUND-TRUTH LATER ###
+            # Ground Truth images are in dataset['image']
+            print("Rendering image with shape:", rgb_image.shape)
+            rgbs_gt = data['image'].permute(1, 2, 0)
+            print("GT Image with shape:", rgbs_gt.shape)
             
-            print(f"Rendered image {idx+1}/{limit if limit > 0 else len(dataset)}: shape {rgb_image.shape}")
-            
+            from utils.visualization import show_render_comparison
+            # If you have ground truth images, you can compare them here
+            show_render_comparison(
+                rgbs_gt=rgbs_gt,
+                rgbs_pred=rgb_image,
+                save_path=f"{eval_cfg['output_dir']}/compare_{idx:03d}.png"  # Set a path if you want to save the comparison
+            )
+
+            rgb_image = rgb_image.permute(2, 0, 1)
             # Save the rendered image to disk
+            print(f"Rendered image {idx+1}/{limit if limit > 0 else len(dataset)}: shape {rgb_image.shape}")
             output_path = f"{eval_cfg['output_dir']}/rendered_{idx:03d}.png"
             save_predicted_image(rgb_image, output_path)
 
@@ -76,7 +87,7 @@ if __name__ == "__main__":
     from models.nerf import TinyNeRF  # Replace with your actual model import
     from utils.model_utils import load_model_for_inference
     model = TinyNeRF()  # Load your trained model here
-    load_model_for_inference(
+    model = load_model_for_inference(
         checkpoint_path='checkpoints/checkpoint_epoch_0002.pth',
         model_class=TinyNeRF,
         model_kwargs= {'body_depth': 4, "color_head_depth": 2, "width": 64, "pos_freqs": 10, "dir_freqs": 4, "skip_layer": 3},
@@ -88,7 +99,6 @@ if __name__ == "__main__":
     dirs_cam = ray_gen.compute_camera_dirs().to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
     eval_cfg = {
-        'novel_poses': [torch.eye(4) for _ in range(5)],  # Example poses
         'near': 0.1,
         'far': 100.0,
         'num_samples': 64,
@@ -99,4 +109,4 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)  # Move model to the appropriate device
     
-    evaluate_novel_views(model, ray_gen, dirs_cam, eval_cfg, device)
+    evaluate_novel_views(model, ray_gen, dirs_cam, eval_cfg, device, limit=-1)

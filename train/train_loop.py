@@ -219,7 +219,7 @@ def main():
             plot_loss_curve(loss_history, cfg['output']['log_dir'], epoch + 1)
     # Final save
     save_checkpoint(model, optimizer, cfg['training']['num_epochs'], cfg['output']['checkpoint_dir'], scheduler)
-    plot_loss_curve(loss_history, cfg['output']['log_dir'], cfg['training']['num_epochs'])
+    plot_loss_curve(loss_history, cfg['output']['log_dir'])
     print("Training complete!")
 
 if __name__ == "__main__":
