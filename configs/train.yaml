@@ -20,19 +20,19 @@ training:
 
 # Model architecture parameters
 model_params:
-  body_depth: 6                   # number of layers in the MLP body
-  color_head_depth: 4             # number of layers in the color head
-  width: 128                      # hidden dimension size
+  body_depth: 4                   # number of layers in the MLP body
+  color_head_depth: 2             # number of layers in the color head
+  width: 64                      # hidden dimension size
   pos_freqs: 10                   # number of L in positional encoding for points
   dir_freqs: 4                    # number of L in positional encoding for dirs
   skip_layer: 3                   # index of layer to apply skip connection in body
 
 # Volume-rendering settings
 render_params:
-  num_samples: 64                 # # of stratified samples per ray
+  num_samples: 32                 # # of stratified samples per ray
   near: 2.0                       # near plane distance
   far: 6.0                        # far plane distance
-  chunk_size: 4096                # number of points per forward-chunk
+  chunk_size: 256                 # number of points per forward-chunk
   background_color: [0, 0, 0]     # (R,G,B) background for unoccupied rays
   normalize_weights: false        # whether to normalize weights to sum=1
 

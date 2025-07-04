@@ -141,8 +141,9 @@ def train_one_epoch(
     total_loss = 0.0
     num_rays = 0
 
-    for batch in dataloader:
+    for i, batch in enumerate(dataloader):
         # Load image and pose
+        print(f"Processing batch...{i}")
         image_rgb = batch['image'].squeeze(0).permute(1, 2, 0).to(device)  # [H, W, 3]
         c2w = batch['c2w'].squeeze(0).detach().cpu().numpy()  # [4, 4]
 
