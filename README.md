@@ -1,3 +1,4 @@
+```
 nerf_demo/
 ├── configs/
 │   ├── eval.yaml              # Config for Evaluation
@@ -37,3 +38,4 @@ nerf_demo/
 │
 ├── requirements.txt           # torch, torchvision, PyYAML, etc.
 └── README.md                  # overview, setup, and usage instructions
+```
