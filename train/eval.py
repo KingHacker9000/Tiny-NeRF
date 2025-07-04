@@ -63,7 +63,7 @@ def evaluate_novel_views(
             
             ### TODO: COMPARE TO GROUND-TRUTH LATER ###
             
-            print(f"Rendered image {idx+1}/{len(eval_cfg['novel_poses'])}: shape {rgb_image.shape}")
+            print(f"Rendered image {idx+1}/{limit if limit > 0 else len(dataset)}: shape {rgb_image.shape}")
             
             # Save the rendered image to disk
             output_path = f"{eval_cfg['output_dir']}/rendered_{idx:03d}.png"
@@ -74,19 +74,26 @@ if __name__ == "__main__":
     # Example usage
     # Assuming you have a trained model, ray_gen, and dirs_cam ready
     from models.nerf import TinyNeRF  # Replace with your actual model import
+    from utils.model_utils import load_model_for_inference
     model = TinyNeRF()  # Load your trained model here
-    intrinsics = {
-        'fx': 500.0, 'fy': 500.0, 'cx': 320.0, 'cy': 240.0, 'width': 640, 'height': 480, 'resolution_x': 640, 'resolution_y': 480, 'f_mm': 35.0, 'sensor_width_mm': 36.0, 'sensor_height_mm': 24.0
-    }  # Example intrinsics
+    load_model_for_inference(
+        checkpoint_path='checkpoints/checkpoint_epoch_0002.pth',
+        model_class=TinyNeRF,
+        model_kwargs= {'body_depth': 4, "color_head_depth": 2, "width": 64, "pos_freqs": 10, "dir_freqs": 4, "skip_layer": 3},
+        device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    )
+    from utils.io import load_dataset  # Replace with your actual dataset loading function
+    intrinsics = load_dataset()['intrinsics']  # Replace with your actual dataset loading function
     ray_gen = RayGenerator(intrinsics=intrinsics)  # Replace with your actual RayGenerator instance
-    dirs_cam = torch.randn(480, 640, 3)  # Example camera directions tensor
+    dirs_cam = ray_gen.compute_camera_dirs().to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
     eval_cfg = {
         'novel_poses': [torch.eye(4) for _ in range(5)],  # Example poses
         'near': 0.1,
         'far': 100.0,
         'num_samples': 64,
-        'output_dir': 'renders'
+        'output_dir': 'renders',
+        'root_dir': 'C:/Dev/Random_Projects/NeRF_Demo/dataset'  # Path to your dataset
     }
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
