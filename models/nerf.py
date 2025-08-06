@@ -27,7 +27,7 @@ class TinyNeRF(nn.Module):
     body: nn.ModuleList
     color_head: nn.Sequential
 
-    def __init__( self, body_depth: int = 6, color_head_depth: int = 4, width: int = 128, pos_freqs: int = 10, dir_freqs: int = 4, skip_layer: int = 3) -> None:
+    def __init__( self, body_depth: int = 6, color_head_depth: int = 4, width: int = 128, pos_freqs: int = 10, dir_freqs: int = 4, skip_layer: int = 3, device = 'cuda') -> None:
 
         # Assertions
         assert body_depth >= 2, f"body_depth {body_depth} must be >= 2"
@@ -42,6 +42,7 @@ class TinyNeRF(nn.Module):
         self.skip_layer = skip_layer
         self.body_depth = body_depth
         self.color_head_depth = color_head_depth
+        self.device = device
 
         # 1) Positional encoders for positions & directions
         self.pos_enc = PositionalEncoding(pos_freqs)

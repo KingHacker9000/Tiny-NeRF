@@ -10,7 +10,7 @@ import os
 from data.loader import NeRFDataset
 from data.rays   import RayGenerator
 from models.nerf import TinyNeRF
-from rendering.volume_render import volume_render
+from rendering.volume_render import volume_render, render_chunks
 from train.eval  import evaluate_novel_views
 from utils.visualization import plot_loss_curve
 from utils.io import save_checkpoint, load_checkpoint
@@ -89,7 +89,7 @@ def build_dataloader(cfg: dict, device: torch.device) -> tuple[DataLoader, RayGe
     dataset = NeRFDataset(cfg['data']['root_dir'])
     
     rg = RayGenerator(dataset.intrinsics)  # Move to device
-    dirs_cam = rg.compute_camera_dirs().to(device)  # Move to device
+    dirs_cam = rg.compute_camera_dirs()
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True)
 
@@ -139,35 +139,45 @@ def train_one_epoch(
     """
     
     model.train()
-    total_loss = 0.0
+    epoch_loss = 0.0
     num_rays = 0
 
     for i, batch in enumerate(dataloader):
-        # Load image and pose
-        print(f"Processing batch...{i}")
-        image_rgb = batch['image'].squeeze(0).permute(1, 2, 0).to(device)  # [H, W, 3]
-        c2w = batch['c2w'].squeeze(0).detach().cpu().numpy()  # [4, 4]
+        image_rgb = batch["image"].squeeze(0).permute(1,2,0).to(device)  # [H,W,3]
+        gt_flat   = image_rgb.reshape(-1, 3)                              # [R,3]
+        c2w       = batch["c2w"].squeeze(0).cpu().numpy()
 
-        # Get rays
-        rays_o, rays_d = rg.get_world_rays(dirs_cam, c2w)  # [H*W, 3], [H*W, 3]
+        rays_o, rays_d = rg.get_world_rays(dirs_cam, c2w)
 
-        # Render volume
-        rendered_rgb = volume_render(rays_o, rays_d, model, **cfg['render_params'])
+        optimizer.zero_grad()           # zero once per image
+        running_loss = 0.0
+        torch.cuda.reset_peak_memory_stats()
+        print(f"batch {i}")
 
-        # Compute loss
-        loss = torch.nn.functional.mse_loss(rendered_rgb, image_rgb.view(-1, 3), reduction='sum') 
-        
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
+        for pred_chunk, idx in render_chunks(
+            rays_o, rays_d, model,
+            num_samples   = cfg["render_params"]["num_samples"],
+            near          = cfg["render_params"]["near"],
+            far           = cfg["render_params"]["far"],
+            chunk_size    = cfg["render_params"]["chunk_size"],
+            background_color = cfg["render_params"]["background_color"],
+            normalize_weights = cfg["render_params"]["normalize_weights"],
+        ):
+            #print(f"--chunk {idx}")
+            target = gt_flat[idx].to(device)            # slice GT to match chunk
+
+            loss   = torch.nn.functional.mse_loss(pred_chunk, target, reduction="mean")
+            loss.backward()
+
+            running_loss += loss.item()
+
+        print(torch.cuda.max_memory_allocated()/1e9, "GB peak")
         optimizer.step()
 
-        total_loss += loss.detach()
-        num_rays += rendered_rgb.shape[0]
+        avg_img_loss = running_loss              # already per-ray mean
+        epoch_loss  += avg_img_loss
 
-    avg_mse_per_pixel = total_loss / num_rays if num_rays > 0 else float('inf')
-    mse = avg_mse_per_pixel.item()
-    return mse
+    return epoch_loss / len(dataloader)    # average per image
 
 
 def main():
@@ -194,12 +204,13 @@ def main():
     device = torch.device(cfg['training']['device'])
     dataloader, rg, dirs_cam = build_dataloader(cfg, device)
     model, optimizer, scheduler = build_model_and_opt(cfg, device)
+
     if args.resume:
         load_checkpoint(cfg['training']['checkpoint_dir'], model, optimizer, scheduler, map_location=device)
         pass
     loss_history = []
     for epoch in range(cfg['training']['num_epochs']):
-        avg_loss = train_one_epoch(dataloader, model, optimizer, cfg, rg, dirs_cam, device)
+        avg_loss = train_one_epoch(dataloader, model, optimizer,cfg, rg, dirs_cam, device)
         loss_history.append(avg_loss)
         print(f"Epoch {epoch+1}/{cfg['training']['num_epochs']}, Loss: {avg_loss:.4f}")
         
