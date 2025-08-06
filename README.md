@@ -42,18 +42,11 @@ Tiny-NeRF/
 
 ## 🔧 Requirements
 
-Install dependencies manually (no `requirements.txt` provided):
+Install dependencies using `requirements.txt` provided:
 
 ```bash
-pip install torch torchvision pyyaml pillow matplotlib numpy
+pip install -r requirements.txt
 ```
-
-- Python 3.9+
-- PyTorch (GPU recommended)
-- PyYAML
-- Pillow
-- Matplotlib
-- NumPy
 
 ---
 
@@ -75,6 +68,8 @@ Prepare your dataset with the following structure:
   `resolution_x`, `resolution_y`, `f_mm`, `sensor_width_mm` (optionally `sensor_height_mm`)
 
 - `poses.json` must map numeric keys (`"0"`, `"1"`, …) to camera-to-world matrices
+
+- You can download a small [Demo Dataset Here](https://drive.google.com/drive/folders/1qgHIg90g84B13LspqQbpzkUURM0HbuD6?usp=drive_link)
 
 ---
 
