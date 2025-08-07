@@ -2,6 +2,8 @@
 
 **Tiny-NeRF** is a minimal PyTorch implementation of [Neural Radiance Fields (NeRF)](https://arxiv.org/abs/2003.08934). It provides a clean, educational base for understanding how NeRF works, including positional encoding, ray generation, volume rendering, and training pipelines.
 
+![Demo](assets/comparision.gif)
+
 ---
 
 ## 📦 Features
